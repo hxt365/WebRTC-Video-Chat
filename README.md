@@ -1,4 +1,4 @@
-This is a basic one to one video chat web app, powered by WebRTC and Firebase
+This is a basic one to one video chat web app, implemented with WebRTC and Firebase
 # TODO
 1. Register a free stun server at http://numb.viagenie.ca/
 2. Register a firebase and allow read & write permissions
