@@ -1,0 +1,69 @@
+import React, { useState, useEffect } from 'react';
+import Videostream from 'components/videostream';
+import fb, { sendMessage, yourId } from 'services/firebase';
+import pc from 'services/WebRTCConnection';
+
+function Homepage() {
+  const [localStream, setLocalStream] = useState(null);
+  const [remoteStream, setRemoteStream] = useState(null);
+
+  const readMessage = async data => {
+    const msg = JSON.parse(data.val().message);
+    const sender = { ...data.val() };
+    // console.log(msg);
+    if (sender !== yourId) {
+      if (msg.ice) pc.addIceCandidate(new RTCIceCandidate(msg.ice));
+      else if (msg.sdp.type === 'offer') {
+        await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(new RTCSessionDescription(answer));
+        sendMessage({ sdp: pc.localDescription });
+      } else if (msg.sdp.type === 'answer') {
+        pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+      }
+    }
+  };
+
+  useEffect(() => {
+    pc.onicecandidate = event => {
+      if (event.candidate) sendMessage({ ice: event.candidate });
+      else console.log('Sent all ice');
+    };
+
+    pc.onaddstream = event => {
+      setRemoteStream(event.stream);
+    };
+
+    fb.on('child_added', readMessage);
+  }, []);
+
+  useEffect(() => {
+    const showMyFace = async () => {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+      pc.addStream(stream);
+      setLocalStream(stream);
+    };
+
+    showMyFace();
+  }, []);
+
+  const showFriendsFace = async () => {
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    sendMessage({ sdp: pc.localDescription });
+  };
+
+  return (
+    <section className="homepage">
+      <div className="stream">
+        <Videostream src={localStream} autoplay muted />
+        <Videostream src={remoteStream} autoplay />
+      </div>
+      <button type="button" onClick={showFriendsFace}>
+        Start your call!
+      </button>
+    </section>
+  );
+}
+
+export default Homepage;
