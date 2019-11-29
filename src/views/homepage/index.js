@@ -10,7 +10,6 @@ function Homepage() {
   const readMessage = async data => {
     const msg = JSON.parse(data.val().message);
     const sender = { ...data.val() };
-    // console.log(msg);
     if (sender !== yourId) {
       if (msg.ice) pc.addIceCandidate(new RTCIceCandidate(msg.ice));
       else if (msg.sdp.type === 'offer') {
@@ -24,27 +23,38 @@ function Homepage() {
     }
   };
 
-  useEffect(() => {
-    pc.onicecandidate = event => {
-      if (event.candidate) sendMessage({ ice: event.candidate });
-      else console.log('Sent all ice');
-    };
+  pc.onicecandidate = event => {
+    if (event.candidate) sendMessage({ ice: event.candidate });
+    else console.log('Sent all ice');
+  };
 
-    pc.onaddstream = event => {
-      setRemoteStream(event.stream);
-    };
-
-    fb.on('child_added', readMessage);
-  }, []);
+  pc.ontrack = event => {
+    if (event.streams && event.streams[0]) {
+      setRemoteStream(event.streams[0]);
+    } else {
+      let inboundStream = null;
+      if (!remoteStream) {
+        inboundStream = new MediaStream();
+        inboundStream.addTrack(event.track);
+      } else {
+        inboundStream = { ...remoteStream };
+        inboundStream.addTrack(event.track);
+      }
+      setRemoteStream(inboundStream);
+    }
+  };
 
   useEffect(() => {
     const showMyFace = async () => {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-      pc.addStream(stream);
+      for (const track of stream.getTracks()) {
+        pc.addTrack(track, stream);
+      }
       setLocalStream(stream);
     };
 
     showMyFace();
+    fb.on('child_added', readMessage);
   }, []);
 
   const showFriendsFace = async () => {
